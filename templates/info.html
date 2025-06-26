@@ -1,0 +1,334 @@
+{% extends "base.html" %}
+
+{% block title %}Thông tin hệ thống - Face Recognition System{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <h2><i class="fas fa-info-circle"></i> Thông tin hệ thống</h2>
+
+        <!-- System Statistics -->
+        <div class="row mb-4">
+            <div class="col-md-4">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <i class="fas fa-users fa-3x text-primary mb-3"></i>
+                        <h4 id="totalFaces" class="text-primary">-</h4>
+                        <p class="card-text">Tổng số khuôn mặt</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-4">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <i class="fas fa-vector-square fa-3x text-success mb-3"></i>
+                        <h4 id="totalVectors" class="text-success">-</h4>
+                        <p class="card-text">Vector embeddings</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-4">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <i class="fas fa-database fa-3x text-info mb-3"></i>
+                        <h4 id="collectionName" class="text-info">-</h4>
+                        <p class="card-text">Tên collection</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- System Information -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5><i class="fas fa-server"></i> Thông tin chi tiết</h5>
+            </div>
+            <div class="card-body" id="systemInfo">
+                <div class="d-flex justify-content-center">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Đang tải...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- System Health -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5><i class="fas fa-heartbeat"></i> Tình trạng hệ thống</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-3">
+                        <div class="text-center">
+                            <div id="apiStatus" class="mb-2">
+                                <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+                            </div>
+                            <p>API Status</p>
+                        </div>
+                    </div>
+
+                    <div class="col-md-3">
+                        <div class="text-center">
+                            <div id="dbStatus" class="mb-2">
+                                <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+                            </div>
+                            <p>Database Status</p>
+                        </div>
+                    </div>
+
+                    <div class="col-md-3">
+                        <div class="text-center">
+                            <div id="faceServiceStatus" class="mb-2">
+                                <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+                            </div>
+                            <p>Face Service</p>
+                        </div>
+                    </div>
+
+                    <div class="col-md-3">
+                        <div class="text-center">
+                            <div id="overallStatus" class="mb-2">
+                                <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+                            </div>
+                            <p>Overall Status</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-tools"></i> Thao tác hệ thống</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <button class="btn btn-info w-100 mb-2" onclick="refreshData()">
+                            <i class="fas fa-sync"></i> Làm mới dữ liệu
+                        </button>
+                    </div>
+
+                    <div class="col-md-6">
+                        <button class="btn btn-primary w-100 mb-2" onclick="downloadInfo()">
+                            <i class="fas fa-download"></i> Tải xuống thông tin
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Load system information on page load
+    document.addEventListener('DOMContentLoaded', function () {
+        loadSystemInfo();
+        checkSystemHealth();
+    });
+
+    async function loadSystemInfo() {
+        try {
+            const response = await fetch('/collection_info');
+            const data = await response.json();
+
+            if (response.ok) {
+                // Update statistics
+                document.getElementById('totalFaces').textContent = data.points_count || 0;
+                document.getElementById('totalVectors').textContent = data.vectors_count || 0;
+                document.getElementById('collectionName').textContent = data.collection_name || 'N/A';
+
+                // Update detailed info
+                const infoHtml = `
+                <div class="row">
+                    <div class="col-md-6">
+                        <table class="table table-borderless">
+                            <tr>
+                                <td><strong>Collection Name:</strong></td>
+                                <td>${data.collection_name || 'N/A'}</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Points Count:</strong></td>
+                                <td>${data.points_count || 0}</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Vectors Count:</strong></td>
+                                <td>${data.vectors_count || 0}</td>
+                            </tr>
+                        </table>
+                    </div>
+                    <div class="col-md-6">
+                        <table class="table table-borderless">
+                            <tr>
+                                <td><strong>Last Updated:</strong></td>
+                                <td>${new Date().toLocaleString('vi-VN')}</td>
+                            </tr>
+                            <tr>
+                                <td><strong>System Version:</strong></td>
+                                <td>1.0.0</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Framework:</strong></td>
+                                <td>FastAPI + Qdrant + InsightFace</td>
+                            </tr>
+                        </table>
+                    </div>
+                </div>
+            `;
+
+                document.getElementById('systemInfo').innerHTML = infoHtml;
+
+            } else {
+                throw new Error(data.detail || 'Không thể tải thông tin hệ thống');
+            }
+
+        } catch (error) {
+            document.getElementById('systemInfo').innerHTML = `
+            <div class="alert alert-danger">
+                <i class="fas fa-exclamation-triangle"></i> ${error.message}
+            </div>
+        `;
+
+            // Set error values
+            document.getElementById('totalFaces').textContent = 'Error';
+            document.getElementById('totalVectors').textContent = 'Error';
+            document.getElementById('collectionName').textContent = 'Error';
+        }
+    }
+
+    async function checkSystemHealth() {
+        // Check API Status
+        try {
+            const response = await fetch('/');
+            if (response.ok) {
+                updateStatusBadge('apiStatus', 'success', 'Online');
+            } else {
+                throw new Error('API Error');
+            }
+        } catch (error) {
+            updateStatusBadge('apiStatus', 'danger', 'Offline');
+        }
+
+        // Check Database Status
+        try {
+            const response = await fetch('/collection_info');
+            if (response.ok) {
+                updateStatusBadge('dbStatus', 'success', 'Connected');
+            } else {
+                throw new Error('DB Error');
+            }
+        } catch (error) {
+            updateStatusBadge('dbStatus', 'danger', 'Disconnected');
+        }
+
+        // Check Face Service Status
+        try {
+            const response = await fetch('/faces');
+            if (response.ok) {
+                updateStatusBadge('faceServiceStatus', 'success', 'Running');
+            } else {
+                throw new Error('Service Error');
+            }
+        } catch (error) {
+            updateStatusBadge('faceServiceStatus', 'danger', 'Error');
+        }
+
+        // Update overall status
+        setTimeout(() => {
+            const statuses = [
+                document.getElementById('apiStatus').querySelector('.badge'),
+                document.getElementById('dbStatus').querySelector('.badge'),
+                document.getElementById('faceServiceStatus').querySelector('.badge')
+            ];
+
+            const allOnline = statuses.every(badge => badge && badge.classList.contains('bg-success'));
+
+            if (allOnline) {
+                updateStatusBadge('overallStatus', 'success', 'Healthy');
+            } else {
+                updateStatusBadge('overallStatus', 'warning', 'Issues');
+            }
+        }, 1000);
+    }
+
+    function updateStatusBadge(elementId, type, text) {
+        const element = document.getElementById(elementId);
+        element.innerHTML = `<span class="badge bg-${type}">${text}</span>`;
+    }
+
+    function refreshData() {
+        // Show loading
+        document.getElementById('systemInfo').innerHTML = `
+        <div class="d-flex justify-content-center">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Đang tải...</span>
+            </div>
+        </div>
+    `;
+
+        // Reset status indicators
+        ['apiStatus', 'dbStatus', 'faceServiceStatus', 'overallStatus'].forEach(id => {
+            document.getElementById(id).innerHTML = `
+            <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+        `;
+        });
+
+        // Reload data
+        loadSystemInfo();
+        checkSystemHealth();
+
+        showAlert('info', 'Đang làm mới dữ liệu...');
+    }
+
+    function downloadInfo() {
+        // Get current system info
+        const info = {
+            timestamp: new Date().toISOString(),
+            totalFaces: document.getElementById('totalFaces').textContent,
+            totalVectors: document.getElementById('totalVectors').textContent,
+            collectionName: document.getElementById('collectionName').textContent,
+            apiStatus: document.getElementById('apiStatus').textContent.trim(),
+            dbStatus: document.getElementById('dbStatus').textContent.trim(),
+            faceServiceStatus: document.getElementById('faceServiceStatus').textContent.trim(),
+            overallStatus: document.getElementById('overallStatus').textContent.trim()
+        };
+
+        // Create and download file
+        const dataStr = JSON.stringify(info, null, 2);
+        const dataBlob = new Blob([dataStr], { type: 'application/json' });
+        const url = URL.createObjectURL(dataBlob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `face_recognition_system_info_${new Date().toISOString().split('T')[0]}.json`;
+        link.click();
+        URL.revokeObjectURL(url);
+
+        showAlert('success', 'Đã tải xuống thông tin hệ thống');
+    }
+
+    function showAlert(type, message) {
+        const alertHtml = `
+        <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+            <i class="fas fa-${type === 'success' ? 'check-circle' : type === 'info' ? 'info-circle' : 'exclamation-triangle'}"></i> ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    `;
+
+        document.querySelector('.container').insertAdjacentHTML('afterbegin', alertHtml);
+
+        // Auto dismiss after 3 seconds
+        setTimeout(() => {
+            const alert = document.querySelector('.alert');
+            if (alert) {
+                alert.remove();
+            }
+        }, 3000);
+    }
+</script>
+{% endblock %}

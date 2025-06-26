@@ -9,6 +9,7 @@ weight/
 
 /qdrant_data
 /test
+/images
 # C extensions
 *.so
 templates/upload/*

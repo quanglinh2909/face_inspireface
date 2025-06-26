@@ -1,0 +1,580 @@
+{% extends "base.html" %}
+
+{% block title %}Chi tiết khuôn mặt{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-4">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="/ui" class="text-decoration-none"><i class="fas fa-home"></i> Trang
+                    chủ</a></li>
+            <li class="breadcrumb-item"><a href="/faces/ui" class="text-decoration-none"><i class="fas fa-users"></i>
+                    Quản lý khuôn mặt</a></li>
+            <li class="breadcrumb-item active" aria-current="page"><i class="fas fa-user"></i> Chi tiết khuôn mặt</li>
+        </ol>
+    </nav>
+
+    <!-- Loading State -->
+    <div id="loadingState">
+        <div class="d-flex justify-content-center">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Đang tải...</span>
+            </div>
+        </div>
+    </div>
+    <p class="text-center mt-3">Đang tải thông tin khuôn mặt...</p>
+</div>
+
+<!-- Error State -->
+<div id="errorState" style="display: none;">
+    <div class="alert shadow-sm"
+        style="background-color: rgba(220, 53, 69, 0.1); color: #dc3545; border: 1px solid rgba(220, 53, 69, 0.2);">
+        <div class="d-flex align-items-center">
+            <i class="fas fa-exclamation-circle fa-2x me-3"></i>
+            <div>
+                <h5 class="mb-1">Có lỗi xảy ra</h5>
+                <p id="errorMessage" class="mb-2"></p>
+                <button class="btn btn-transparent-danger" onclick="location.reload()">
+                    <i class="fas fa-redo me-1"></i> Thử lại
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Main Content -->
+<div id="mainContent" style="display: none;">
+    <div class="row g-4">
+        <!-- Left Column: Face Information -->
+        <div class="col-lg-5">
+            <div class="card shadow-sm border-0 h-100">
+                <div class="card-body p-4">
+                    <!-- Face Image & Basic Info -->
+                    <div class="text-center mb-4">
+                        <div class="position-relative d-inline-block mb-3">
+                            <img id="faceImage" src="" alt="Face Image" class="rounded-circle img-thumbnail"
+                                style="width: 160px; height: 160px; object-fit: cover;">
+                            <div id="imageError" class="text-muted rounded-circle bg-light"
+                                style="display: none; width: 160px; height: 160px; position: absolute; top: 0; left: 50%; transform: translateX(-50%); border: 1px solid #dee2e6;">
+                                <div class="d-flex flex-column justify-content-center align-items-center h-100">
+                                    <i class="fas fa-user fa-3x mb-2 text-secondary"></i>
+                                    <p class="small mb-0">Không có ảnh</p>
+                                </div>
+                            </div>
+                        </div>
+                        <h3 id="personName" class="mb-1">Loading...</h3>
+                        <span class="badge mb-2 d-inline-block"
+                            style="background-color: rgba(108, 117, 125, 0.1); color: #6c757d; border: 1px solid rgba(108, 117, 125, 0.2);"
+                            id="codeCardBadge">
+                            <i class="fas fa-id-card me-1"></i>
+                            <span id="codeCard">Loading...</span>
+                        </span>
+                    </div>
+
+                    <!-- Face Details -->
+                    <div class="border-top pt-3">
+                        <div class="row">
+                            <div class="col-12 mb-3">
+                                <span class="text-muted small">ID:</span>
+                                <p id="faceId" class="mb-0 font-monospace">Loading...</p>
+                            </div>
+                            <div class="col-6 mb-3">
+                                <span class="text-muted small">Ngày tạo:</span>
+                                <p id="createdAt" class="mb-0">Loading...</p>
+                            </div>
+                            <div class="col-6 mb-3">
+                                <span class="text-muted small">Cập nhật:</span>
+                                <p id="updatedAt" class="mb-0">Loading...</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Search Similar Button -->
+                    <div class="text-center mt-3">
+                        <button class="btn btn-transparent-primary px-4 py-2" onclick="findSimilarFaces()">
+                            <i class="fas fa-search me-2"></i> Tìm khuôn mặt tương tự
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Column: Similar Faces -->
+        <div class="col-lg-7">
+            <div class="card shadow-sm border-0">
+                <div class="card-body p-4">
+                    <h4 class="mb-4">
+                        <i class="fas fa-users me-2"></i>
+                        Khuôn mặt tương tự
+                    </h4>
+
+                    <div id="similarFacesInitial" class="text-center py-5">
+                        <img src="https://cdn-icons-png.flaticon.com/512/1602/1602621.png" alt="Search Faces"
+                            class="mb-3 opacity-25" style="width: 120px;">
+                        <h5 class="text-muted">Bắt đầu tìm kiếm</h5>
+                        <p class="text-muted mb-4">Nhấn vào nút "Tìm khuôn mặt tương tự" để bắt đầu tìm kiếm</p>
+                    </div>
+
+                    <!-- Similar Faces Loading State -->
+                    <div id="similarFacesLoading" style="display: none;">
+                        <div class="text-center py-5">
+                            <div class="spinner-border text-primary mb-3" role="status">
+                                <span class="visually-hidden">Đang tìm kiếm...</span>
+                            </div>
+                            <h5>Đang tìm kiếm khuôn mặt tương tự...</h5>
+                            <p class="text-muted">Quá trình này có thể mất vài giây</p>
+                        </div>
+                    </div>
+
+                    <!-- Similar Faces Results -->
+                    <div id="similarFacesResults"></div>
+
+                    <!-- Similar Faces Error State -->
+                    <div id="similarFacesError" style="display: none;" class="alert shadow-sm"
+                        style="background-color: rgba(220, 53, 69, 0.1); color: #dc3545; border: 1px solid rgba(220, 53, 69, 0.2);">
+                        <div class="d-flex">
+                            <i class="fas fa-exclamation-triangle fa-2x me-3"></i>
+                            <div>
+                                <p class="mb-2"><strong>Lỗi:</strong> <span id="similarFacesErrorMessage"></span>
+                                </p>
+                                <button class="btn btn-sm btn-transparent-danger" onclick="searchSimilarFaces()">
+                                    <i class="fas fa-redo me-1"></i> Thử lại
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+</div>
+
+<style>
+    .similar-face-card {
+        transition: transform 0.2s, box-shadow 0.2s;
+        border: none;
+    }
+
+    .similar-face-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+    }
+
+    .similarity-badge {
+        font-size: 0.9rem;
+        padding: 0.35rem 0.6rem;
+        font-weight: 700;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+        border-radius: 8px;
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        z-index: 10;
+        text-align: center;
+        transition: all 0.3s ease;
+    }
+
+    .similarity-high {
+        background-color: #28a745;
+        color: white;
+        border: 1px solid rgba(255, 255, 255, 0.5);
+    }
+
+    .similarity-medium {
+        background-color: #ffc107;
+        color: #212529;
+        border: 1px solid rgba(255, 255, 255, 0.5);
+    }
+
+    .similarity-low {
+        background-color: #6c757d;
+        color: white;
+        border: 1px solid rgba(255, 255, 255, 0.5);
+    }
+
+    /* Thêm hiệu ứng nhấp nháy nhẹ cho badge */
+    @keyframes pulse {
+        0% {
+            transform: scale(1);
+        }
+
+        50% {
+            transform: scale(1.05);
+        }
+
+        100% {
+            transform: scale(1);
+        }
+    }
+
+    .similarity-badge {
+        animation: pulse 2s infinite;
+    }
+
+    .face-avatar {
+        width: 100px;
+        height: 100px;
+        object-fit: cover;
+        border-radius: 50%;
+        border: 3px solid #fff;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    }
+
+    .image-container {
+        position: relative;
+        width: 100%;
+        height: 180px;
+        overflow: hidden;
+        border-radius: 8px;
+        margin-bottom: 10px;
+        background-color: #f8f9fa;
+    }
+
+    .image-container::after {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.2);
+        z-index: 5;
+    }
+
+    .similar-face-card:hover .image-container::after {
+        background: rgba(0, 0, 0, 0.5);
+    }
+
+    .similar-face-card:hover .similarity-badge {
+        transform: scale(1.1);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    }
+
+    .similar-face-image {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+
+    .image-error {
+        width: 100%;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        color: #6c757d;
+        background-color: #f8f9fa;
+        border-radius: 8px;
+    }
+
+    /* Transparent button styles */
+    .btn-transparent-primary {
+        background-color: rgba(13, 110, 253, 0.1);
+        color: #0d6efd;
+        border: 1px solid rgba(13, 110, 253, 0.2);
+    }
+
+    .btn-transparent-primary:hover {
+        background-color: rgba(13, 110, 253, 0.2);
+        color: #0d6efd;
+        border: 1px solid rgba(13, 110, 253, 0.3);
+    }
+
+    .btn-transparent-danger {
+        background-color: rgba(220, 53, 69, 0.1);
+        color: #dc3545;
+        border: 1px solid rgba(220, 53, 69, 0.2);
+    }
+
+    .btn-transparent-danger:hover {
+        background-color: rgba(220, 53, 69, 0.2);
+        color: #dc3545;
+        border: 1px solid rgba(220, 53, 69, 0.3);
+    }
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let currentFaceData = null;
+    let currentFaceId = null;
+
+    document.addEventListener('DOMContentLoaded', function () {
+        console.log('DOM Content Loaded');
+
+        // Get face ID from URL
+        const path = window.location.pathname;
+        const pathParts = path.split('/');
+
+        if (pathParts.length >= 3 && pathParts[1] === 'simple' && pathParts[2] === 'faces' && pathParts[3]) {
+            currentFaceId = pathParts[3];
+        } else if (pathParts.length >= 3 && pathParts[1] === 'faces') {
+            currentFaceId = pathParts[2];
+        } else {
+            const urlParams = new URLSearchParams(window.location.search);
+            currentFaceId = urlParams.get('id');
+        }
+
+        if (!currentFaceId) {
+            showError('Không tìm thấy ID khuôn mặt trong URL');
+            return;
+        }
+
+        loadFaceDetail();
+    });
+
+    async function loadFaceDetail() {
+        try {
+            console.log('Starting loadFaceDetail for: ' + currentFaceId);
+            showLoading();
+
+            const apiUrl = `/api/face/${currentFaceId}`;
+            console.log('Fetching from: ' + apiUrl);
+
+            const response = await fetch(apiUrl);
+            console.log('Response status: ' + response.status);
+
+            const data = await response.json();
+
+            if (response.ok && data.success) {
+                currentFaceData = data.face;
+                console.log('Face data loaded successfully');
+                displayFaceDetail(currentFaceData);
+                showMainContent();
+            } else {
+                throw new Error(data.detail || 'Không thể tải thông tin khuôn mặt');
+            }
+        } catch (error) {
+            console.error('Error:', error.message);
+            showError(error.message);
+        }
+    }
+
+    function displayFaceDetail(face) {
+        console.log('Displaying face detail');
+
+        // Format dates nicely if available
+        let createdDate = face.created_at ? new Date(face.created_at) : null;
+        let updatedDate = face.updated_at ? new Date(face.updated_at) : null;
+
+        let formattedCreatedDate = createdDate ? createdDate.toLocaleString('vi-VN', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        }) : 'N/A';
+
+        let formattedUpdatedDate = updatedDate ? updatedDate.toLocaleString('vi-VN', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        }) : 'N/A';
+
+        // Update basic info
+        document.getElementById('faceId').textContent = face.id || 'N/A';
+        document.getElementById('personName').textContent = face.person_name || 'Không xác định';
+        document.getElementById('codeCard').textContent = face.code_card || 'N/A';
+        document.getElementById('createdAt').textContent = formattedCreatedDate;
+        document.getElementById('updatedAt').textContent = formattedUpdatedDate;
+
+        // Update image
+        const faceImage = document.getElementById('faceImage');
+        const imageError = document.getElementById('imageError');
+
+        if (face.image_path) {
+            const imageSrc = `/images/${face.image_path}`;
+            console.log('Setting image src: ' + imageSrc);
+            faceImage.src = imageSrc;
+            faceImage.style.display = 'block';
+            imageError.style.display = 'none';
+
+            faceImage.onerror = function () {
+                console.log('Image failed to load');
+                faceImage.style.display = 'none';
+                imageError.style.display = 'block';
+            };
+
+            faceImage.onload = function () {
+                console.log('Image loaded successfully');
+            };
+        } else {
+            console.log('No image path available');
+            faceImage.style.display = 'none';
+            imageError.style.display = 'block';
+        }
+    }
+
+    function showLoading() {
+        document.getElementById('loadingState').style.display = 'block';
+        document.getElementById('errorState').style.display = 'none';
+        document.getElementById('mainContent').style.display = 'none';
+    }
+
+    function showMainContent() {
+        document.getElementById('loadingState').style.display = 'none';
+        document.getElementById('errorState').style.display = 'none';
+        document.getElementById('mainContent').style.display = 'block';
+    }
+
+    function showError(message) {
+        document.getElementById('loadingState').style.display = 'none';
+        document.getElementById('errorState').style.display = 'block';
+        document.getElementById('mainContent').style.display = 'none';
+        document.getElementById('errorMessage').textContent = message;
+    }
+
+    function findSimilarFaces() {
+        console.log('Find similar faces clicked');
+
+        if (!currentFaceData || !currentFaceData.image_path) {
+            alert('Không có ảnh để tìm kiếm tương tự');
+            return;
+        }
+
+        document.getElementById('similarFacesInitial').style.display = 'none';
+        searchSimilarFaces();
+    }
+
+    async function searchSimilarFaces() {
+        try {
+            console.log('Starting search for similar faces');
+            showSimilarFacesLoading();
+
+            // Create a blob from the current face image
+            const imageUrl = `/images/${currentFaceData.image_path}`;
+            const response = await fetch(imageUrl);
+            const blob = await response.blob();
+
+            // Create FormData for the search request
+            const formData = new FormData();
+            formData.append('file', blob, currentFaceData.image_path);
+            formData.append('limit', '10'); // Search for top 10 similar faces
+
+            console.log('Sending search request to /search_face');
+
+            const searchResponse = await fetch('/search_face', {
+                method: 'POST',
+                body: formData
+            });
+
+            const searchData = await searchResponse.json();
+            console.log('Search response received');
+
+            if (searchResponse.ok && searchData.results) {
+                // Filter out the current face from results
+                const filteredResults = searchData.results.filter(result =>
+                    result.id !== currentFaceId
+                );
+                displaySimilarFaces(filteredResults);
+            } else {
+                throw new Error(searchData.detail || 'Không thể tìm kiếm khuôn mặt tương tự');
+            }
+        } catch (error) {
+            console.error('Error searching similar faces:', error.message);
+            showSimilarFacesError(error.message);
+        }
+    }
+
+    function displaySimilarFaces(results) {
+        console.log('Displaying similar faces: ' + results.length + ' results');
+
+        const resultsContainer = document.getElementById('similarFacesResults');
+
+        if (results.length === 0) {
+            resultsContainer.innerHTML = `
+                <div class="text-center py-4" style="color: #6c757d;">
+                    <i class="fas fa-search fa-3x mb-3" style="color: rgba(13, 110, 253, 0.3);"></i>
+                    <h5>Không tìm thấy khuôn mặt tương tự</h5>
+                    <p>Hệ thống không tìm thấy khuôn mặt nào tương tự với khuôn mặt hiện tại.</p>
+                </div>
+            `;
+            return;
+        }
+
+        let html = '<div class="row">';
+
+        results.forEach((result, index) => {
+            const similarity = (result.score * 100).toFixed(1);
+
+            // Determine similarity level for styling
+            let similarityClass = 'similarity-low';
+            if (similarity >= 80) {
+                similarityClass = 'similarity-high';
+            } else if (similarity >= 60) {
+                similarityClass = 'similarity-medium';
+            }
+
+            html += `
+                <div class="col-md-4 col-sm-6 mb-3">
+                    <div class="card similar-face-card h-100 shadow-sm border-0">
+                        <div class="card-body text-center p-3">
+                            <div class="position-relative mb-2">
+                                <div class="image-container">
+                                    <img src="/images/${result.image_path}" 
+                                         alt="Similar face" 
+                                         class="similar-face-image"
+                                         onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                                    <div class="image-error" style="display: none;">
+                                        <i class="fas fa-user fa-2x mb-2"></i>
+                                        <p class="mb-0">Không có ảnh</p>
+                                    </div>
+                                </div>
+                                <span class="badge similarity-badge ${similarityClass}">
+                                    ${similarity}%
+                                </span>
+                            </div>
+                            <h6 class="card-title mb-1">${result.person_name || 'Không xác định'}</h6>
+                            <p class="card-text text-muted small mb-3">
+                                ${result.code_card ? `Mã thẻ: ${result.code_card}` : 'Không có mã thẻ'}
+                            </p>
+                            <a href="/face/detail?id=${result.id}" class="btn btn-sm btn-transparent-primary w-100">
+                                <i class="fas fa-eye me-1"></i> Chi tiết
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+
+        html += '</div>';
+
+        // Add summary information
+        const summaryHtml = `
+            <div class="alert shadow-sm mb-3" style="background-color: rgba(13, 202, 240, 0.1); color: #0dcaf0; border: 1px solid rgba(13, 202, 240, 0.2);">
+                <div class="d-flex align-items-center">
+                    <i class="fas fa-info-circle fa-lg me-2"></i>
+                    <div>
+                        Tìm thấy <strong>${results.length}</strong> khuôn mặt tương tự 
+                        (đã loại trừ khuôn mặt hiện tại)
+                    </div>
+                </div>
+            </div>
+        `;
+
+        resultsContainer.innerHTML = summaryHtml + html;
+        hideSimilarFacesLoading();
+    }
+
+    function showSimilarFacesLoading() {
+        document.getElementById('similarFacesLoading').style.display = 'block';
+        document.getElementById('similarFacesResults').innerHTML = '';
+        document.getElementById('similarFacesError').style.display = 'none';
+    }
+
+    function hideSimilarFacesLoading() {
+        document.getElementById('similarFacesLoading').style.display = 'none';
+    }
+
+    function showSimilarFacesError(message) {
+        document.getElementById('similarFacesLoading').style.display = 'none';
+        document.getElementById('similarFacesError').style.display = 'block';
+        document.getElementById('similarFacesErrorMessage').textContent = message;
+    }
+</script>
+{% endblock %}

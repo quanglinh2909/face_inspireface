@@ -18,16 +18,18 @@ import logging
 logging.getLogger("httpx").setLevel(logging.WARNING)
 
 
-def run_face_processing(id_camera, rtsp, shared_mem_name):
+def run_face_processing(id_camera, rtsp, shared_mem_name, lane,url_parking):
     """Function to run face processing in a separate process"""
-    face_processor = OneProcessFace(id_camera, rtsp, shared_mem_name)
+    face_processor = OneProcessFace(id_camera, rtsp, shared_mem_name, lane,url_parking)
     face_processor.process_face()
 
 
 class OneProcessFace:
-    def __init__(self, id_camera, rtsp, shared_mem_name=None):
+    def __init__(self, id_camera, rtsp, shared_mem_name=None, lane="left",url_parking=None):
         self.id_camera = id_camera
         self.platform = get_os_name()
+        self.lane = lane  # Thêm lane vào constructor
+        self.url_parking = url_parking
 
         self.script_dir = os.path.dirname(os.path.abspath(__file__))
         self.path_model_detect_face = os.path.join(self.script_dir, "weight/yolov8n-face.onnx")
@@ -135,16 +137,30 @@ class OneProcessFace:
                             data = find_face_service.find_face(embedding)
                             if len(data) > 0:
                                 similarity = data[0]['similarity_score']
+                                face_id = data[0]['face_id']
+                                code_card = data[0]['code_card']
                                 # percentage = (similarity + 1) / 2 * 100  # chuẩn hóa từ [-1,1] về [0,100]
                                 if similarity > 0.5:
                                     print(data)
-                                    face_id = data[0]['face_id']
                                     if id_current == face_id and time.time() - current_time < 5:
                                         continue
-                                    print(f"[Camera {self.id_camera}] Recognized face ID: {face_id}, similarity: {similarity}")
-                                    id_current = face_id
-                                    current_time = time.time()
-                                    requests.get("http://192.168.103.97:8090/3")
+                                    data_send = {
+                                        "code_card": code_card,
+                                        "lane": self.lane,
+
+                                    }
+                                    try:
+
+                                        result = requests.post(f"{self.url_parking}/parking/authentication",
+                                                               json=data_send)
+                                        if result.json() is True:
+                                            id_current = face_id
+                                            current_time = time.time()
+                                    except Exception as e:
+                                        print(f"[Camera {self.id_camera}] Error sending data: {e}")
+                                    # id_current = face_id
+                                    # current_time = time.time()
+                                    # requests.get("http://192.168.103.97:8090/3")
 
                     # # Draw keypoints and boxes
                     count += 1

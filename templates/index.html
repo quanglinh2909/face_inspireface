@@ -1,0 +1,196 @@
+{% extends "base.html" %}
+
+{% block title %}Trang chủ - Face Recognition System{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <div class="jumbotron bg-light p-5 rounded-3 text-center text-white">
+            <h1 class="display-4"><i class="fas fa-user-check"></i> Hệ thống nhận diện khuôn mặt</h1>
+            <p class="lead">Quản lý và tìm kiếm khuôn mặt sử dụng công nghệ AI tiên tiến</p>
+            <hr class="my-4" style="border-color: rgba(255,255,255,0.3);">
+            <p>Thực hiện các chức năng thêm, sửa, xóa và tìm kiếm khuôn mặt một cách dễ dàng</p>
+        </div>
+    </div>
+</div>
+
+<style>
+    .feature-card {
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .feature-card .card-body {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .feature-card .card-text {
+        flex-grow: 1;
+        margin-bottom: 1rem;
+    }
+
+    .feature-card .btn {
+        margin-top: auto;
+    }
+
+    /* Transparent button styles */
+    .btn-transparent-primary {
+        background-color: rgba(13, 110, 253, 0.1);
+        color: #0d6efd;
+        border: 1px solid rgba(13, 110, 253, 0.2);
+    }
+
+    .btn-transparent-primary:hover {
+        background-color: rgba(13, 110, 253, 0.2);
+        color: #0d6efd;
+        border: 1px solid rgba(13, 110, 253, 0.3);
+    }
+
+    .btn-transparent-success {
+        background-color: rgba(25, 135, 84, 0.1);
+        color: #198754;
+        border: 1px solid rgba(25, 135, 84, 0.2);
+    }
+
+    .btn-transparent-success:hover {
+        background-color: rgba(25, 135, 84, 0.2);
+        color: #198754;
+        border: 1px solid rgba(25, 135, 84, 0.3);
+    }
+
+    .btn-transparent-danger {
+        background-color: rgba(220, 53, 69, 0.1);
+        color: #dc3545;
+        border: 1px solid rgba(220, 53, 69, 0.2);
+    }
+
+    .btn-transparent-danger:hover {
+        background-color: rgba(220, 53, 69, 0.2);
+        color: #dc3545;
+        border: 1px solid rgba(220, 53, 69, 0.3);
+    }
+
+    .btn-transparent-info {
+        background-color: rgba(13, 202, 240, 0.1);
+        color: #0dcaf0;
+        border: 1px solid rgba(13, 202, 240, 0.2);
+    }
+
+    .btn-transparent-info:hover {
+        background-color: rgba(13, 202, 240, 0.2);
+        color: #0dcaf0;
+        border: 1px solid rgba(13, 202, 240, 0.3);
+    }
+
+    .btn-transparent-warning {
+        background-color: rgba(255, 193, 7, 0.1);
+        color: #ffc107;
+        border: 1px solid rgba(255, 193, 7, 0.2);
+    }
+
+    .btn-transparent-warning:hover {
+        background-color: rgba(255, 193, 7, 0.2);
+        color: #ffc107;
+        border: 1px solid rgba(255, 193, 7, 0.3);
+    }
+</style>
+
+<div class="row mt-4">
+    <div class="col-md-3 mb-4">
+        <div class="card text-center feature-card">
+            <div class="card-body">
+                <i class="fas fa-plus fa-3x text-success mb-3"></i>
+                <h5 class="card-title">Thêm khuôn mặt</h5>
+                <p class="card-text">Thêm khuôn mặt mới vào hệ thống</p>
+                <a href="/add" class="btn btn-transparent-success">Thêm mới</a>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-3 mb-4">
+        <div class="card text-center feature-card">
+            <div class="card-body">
+                <i class="fas fa-users fa-3x text-primary mb-3"></i>
+                <h5 class="card-title">Quản lý</h5>
+                <p class="card-text">Xem và quản lý tất cả khuôn mặt</p>
+                <a href="/faces/ui" class="btn btn-transparent-primary">Quản lý</a>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-3 mb-4">
+        <div class="card text-center feature-card">
+            <div class="card-body">
+                <i class="fas fa-search fa-3x text-info mb-3"></i>
+                <h5 class="card-title">Tìm kiếm</h5>
+                <p class="card-text">Tìm kiếm khuôn mặt tương tự</p>
+                <a href="/search" class="btn btn-transparent-info">Tìm kiếm</a>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-3 mb-4">
+        <div class="card text-center feature-card">
+            <div class="card-body">
+                <i class="fas fa-info-circle fa-3x text-warning mb-3"></i>
+                <h5 class="card-title">Thống kê</h5>
+                <p class="card-text">Xem thông tin hệ thống</p>
+                <a href="/info" class="btn btn-transparent-warning">Thống kê</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-chart-bar"></i> Thống kê tổng quan</h5>
+            </div>
+            <div class="card-body" id="stats-content">
+                <div class="d-flex justify-content-center">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Đang tải...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Load statistics
+    fetch('/collection_info')
+        .then(response => response.json())
+        .then(data => {
+            document.getElementById('stats-content').innerHTML = `
+            <div class="row text-center">
+                <div class="col-md-4">
+                    <h3 class="text-primary">${data.points_count || 0}</h3>
+                    <p>Tổng số khuôn mặt</p>
+                </div>
+                <div class="col-md-4">
+                    <h3 class="text-success">${data.vectors_count || 0}</h3>
+                    <p>Vector embeddings</p>
+                </div>
+                <div class="col-md-4">
+                    <h3 class="text-info">${data.collection_name || 'N/A'}</h3>
+                    <p>Tên collection</p>
+                </div>
+            </div>
+        `;
+        })
+        .catch(error => {
+            document.getElementById('stats-content').innerHTML = `
+            <div class="alert alert-warning">
+                <i class="fas fa-exclamation-triangle"></i> Không thể tải thống kê
+            </div>
+        `;
+        });
+</script>
+{% endblock %}

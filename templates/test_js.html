@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+
+{% block title %}Test JavaScript{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1>JavaScript Test Page</h1>
+    <div id="output"></div>
+    <button onclick="testFunction()">Test Function</button>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    console.log('JavaScript is working!');
+
+    document.addEventListener('DOMContentLoaded', function () {
+        console.log('DOM Content Loaded');
+        document.getElementById('output').innerHTML = 'JavaScript is working! DOM loaded at: ' + new Date().toLocaleTimeString();
+    });
+
+    function testFunction() {
+        alert('Test function called!');
+        console.log('Test function executed');
+    }
+</script>
+{% endblock %}

@@ -1,0 +1,255 @@
+{% extends "base.html" %}
+
+{% block title %}Tìm kiếm khuôn mặt - Face Recognition System{% endblock %}
+
+{% block content %}
+<!-- Breadcrumb -->
+<nav aria-label="breadcrumb" class="mb-4">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/ui" class="text-decoration-none"><i class="fas fa-home"></i> Trang chủ</a>
+        </li>
+        <li class="breadcrumb-item active" aria-current="page"><i class="fas fa-search"></i> Tìm kiếm khuôn mặt</li>
+    </ol>
+</nav>
+
+<div class="row">
+    <div class="col-md-12">
+        <h2><i class="fas fa-search"></i> Tìm kiếm khuôn mặt</h2>
+
+        <!-- Search Form -->
+        <div class="search-section">
+            <form id="searchForm" enctype="multipart/form-data">
+                <div class="row">
+                    <div class="col-md-8">
+                        <div class="mb-3">
+                            <label for="searchFile" class="form-label">Chọn ảnh để tìm kiếm <span
+                                    class="text-danger">*</span></label>
+                            <input type="file" class="form-control" id="searchFile" name="file" accept="image/*"
+                                required>
+                            <div class="form-text">Tải lên ảnh khuôn mặt để tìm kiếm những khuôn mặt tương tự</div>
+                        </div>
+                    </div>
+
+                    <div class="col-md-4">
+                        <div class="mb-3">
+                            <label for="searchLimit" class="form-label">Số kết quả tối đa</label>
+                            <select class="form-control" id="searchLimit" name="limit">
+                                <option value="5" selected>5 kết quả</option>
+                                <option value="10">10 kết quả</option>
+                                <option value="15">15 kết quả</option>
+                                <option value="20">20 kết quả</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Image Preview -->
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label">Xem trước ảnh tìm kiếm</label>
+                            <div id="searchImagePreview" class="border rounded p-3 text-center"
+                                style="min-height: 200px;">
+                                <i class="fas fa-cloud-upload-alt fa-3x text-muted"></i>
+                                <p class="text-muted mt-2">Chọn ảnh để xem trước</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-primary btn-lg" id="searchBtn">
+                                <i class="fas fa-search"></i> Tìm kiếm khuôn mặt
+                            </button>
+                            <button type="button" class="btn btn-secondary" onclick="clearSearch()">
+                                <i class="fas fa-times"></i> Xóa kết quả
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </form>
+        </div>
+
+        <!-- Search Results -->
+        <div class="results-section" id="resultsSection" style="display: none;">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5><i class="fas fa-list"></i> Kết quả tìm kiếm</h5>
+                    <span id="resultsCount" class="badge bg-primary"></span>
+                </div>
+                <div class="card-body">
+                    <div id="searchResults"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Loading Modal -->
+<div class="modal fade" id="searchLoadingModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-body text-center">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Đang tìm kiếm...</span>
+                </div>
+                <p class="mt-3">Đang phân tích ảnh và tìm kiếm khuôn mặt tương tự...</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Preview search image
+    document.getElementById('searchFile').addEventListener('change', function (e) {
+        const file = e.target.files[0];
+        const preview = document.getElementById('searchImagePreview');
+
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = function (e) {
+                preview.innerHTML = `
+                <img src="${e.target.result}" class="img-fluid" style="max-height: 300px; border-radius: 8px;">
+                <p class="text-success mt-2"><i class="fas fa-check"></i> Sẵn sàng tìm kiếm</p>
+            `;
+            };
+            reader.readAsDataURL(file);
+        } else {
+            preview.innerHTML = `
+            <i class="fas fa-cloud-upload-alt fa-3x text-muted"></i>
+            <p class="text-muted mt-2">Chọn ảnh để xem trước</p>
+        `;
+        }
+    });
+
+    // Handle search form submission
+    document.getElementById('searchForm').addEventListener('submit', async function (e) {
+        e.preventDefault();
+
+        const formData = new FormData(this);
+        const searchBtn = document.getElementById('searchBtn');
+        const loadingModal = new bootstrap.Modal(document.getElementById('searchLoadingModal'));
+
+        // Show loading
+        loadingModal.show();
+        searchBtn.disabled = true;
+
+        try {
+            const response = await fetch('/search_face', {
+                method: 'POST',
+                body: formData
+            });
+
+            const result = await response.json();
+
+            if (response.ok) {
+                displaySearchResults(result.results || []);
+            } else {
+                throw new Error(result.detail || 'Có lỗi xảy ra khi tìm kiếm');
+            }
+
+        } catch (error) {
+            showAlert('danger', error.message);
+            hideResults();
+        } finally {
+            loadingModal.hide();
+            searchBtn.disabled = false;
+        }
+    });
+
+    function displaySearchResults(results) {
+        const resultsSection = document.getElementById('resultsSection');
+        const resultsContainer = document.getElementById('searchResults');
+        const resultsCount = document.getElementById('resultsCount');
+
+        if (results.length === 0) {
+            resultsContainer.innerHTML = `
+            <div class="text-center py-5">
+                <i class="fas fa-search fa-3x text-muted mb-3"></i>
+                <h4 class="text-muted">Không tìm thấy khuôn mặt tương tự</h4>
+                <p class="text-muted">Hãy thử với ảnh khác hoặc kiểm tra lại chất lượng ảnh</p>
+            </div>
+        `;
+        } else {
+            const resultsHtml = results.map((result, index) => {
+                const confidence = (result.score * 100).toFixed(2);
+                const confidenceClass = confidence > 80 ? 'success' : confidence > 60 ? 'warning' : 'danger';
+
+                return `
+                <div class="col-md-6 col-lg-4 mb-4">
+                    <div class="card h-100">
+                        <div class="position-relative">
+                            <img src="/images/${result.image_path}" class="card-img-top face-image" alt="${result.person_name}" onerror="this.src='data:image/svg+xml,<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"200\" height=\"200\" viewBox=\"0 0 200 200\"><rect width=\"200\" height=\"200\" fill=\"%23f8f9fa\"/><text x=\"50%\" y=\"50%\" font-family=\"Arial\" font-size=\"14\" fill=\"%23666\" text-anchor=\"middle\" dy=\".3em\">Không có ảnh</text></svg>'">
+                            <div class="position-absolute top-0 end-0 m-2">
+                                <span class="badge bg-${confidenceClass} fs-6">#${index + 1}</span>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <h6 class="card-title">${result.person_name}</h6>
+                            <p class="card-text text-muted small">Mã thẻ: ${result.code_card}</p>
+                            <div class="d-flex justify-content-between align-items-center">
+                                <small class="text-muted">ID: ${result.id}</small>
+                                <span class="badge bg-${confidenceClass}">${confidence}%</span>
+                            </div>
+                        </div>
+                        <div class="card-footer bg-transparent">
+                            <div class="progress" style="height: 8px;">
+                                <div class="progress-bar bg-${confidenceClass}" role="progressbar" style="width: ${confidence}%"></div>
+                            </div>
+                            <small class="text-muted">Độ tương tự: ${confidence}%</small>
+                        </div>
+                    </div>
+                </div>
+            `;
+            }).join('');
+
+            resultsContainer.innerHTML = `<div class="row">${resultsHtml}</div>`;
+        }
+
+        resultsCount.textContent = `${results.length} kết quả`;
+        resultsSection.style.display = 'block';
+
+        // Smooth scroll to results
+        resultsSection.scrollIntoView({ behavior: 'smooth' });
+    }
+
+    function clearSearch() {
+        // Reset form
+        document.getElementById('searchForm').reset();
+
+        // Reset preview
+        document.getElementById('searchImagePreview').innerHTML = `
+        <i class="fas fa-cloud-upload-alt fa-3x text-muted"></i>
+        <p class="text-muted mt-2">Chọn ảnh để xem trước</p>
+    `;
+
+        // Hide results
+        hideResults();
+    }
+
+    function hideResults() {
+        document.getElementById('resultsSection').style.display = 'none';
+    }
+
+    function showAlert(type, message) {
+        const alertHtml = `
+        <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+            <i class="fas fa-${type === 'success' ? 'check-circle' : 'exclamation-triangle'}"></i> ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    `;
+
+        document.querySelector('.container').insertAdjacentHTML('afterbegin', alertHtml);
+
+        // Auto dismiss after 5 seconds
+        setTimeout(() => {
+            const alert = document.querySelector('.alert');
+            if (alert) {
+                alert.remove();
+            }
+        }, 5000);
+    }
+</script>
+{% endblock %}

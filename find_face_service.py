@@ -72,7 +72,8 @@ class FaceRecognitionService:
                 results.append({
                     "face_id": result.payload["face_id"],
                     "person_name": result.payload["person_name"],
-                    "similarity_score": result.score
+                    "similarity_score": result.score,
+                    "code_card": result.payload.get("code_card"),
                 })
 
             return results

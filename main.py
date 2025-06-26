@@ -20,10 +20,12 @@ from one_process_face import run_face_processing
 
 
 class CameraWidget(QWidget):
-    def __init__(self, cam_id, rtsp):
+    def __init__(self, cam_id, rtsp, lane, url_parking):
         super().__init__()
         self.cam_id = cam_id
         self.rtsp = rtsp
+        self.lane = lane
+        self.url_parking = url_parking
         self.process = None
         self.shared_mem = None
         self.shared_mem_name = f"camera_{cam_id}_frame"
@@ -87,7 +89,7 @@ class CameraWidget(QWidget):
         # Start the face processing in a separate process
         self.process = mp.Process(
             target=run_face_processing,
-            args=(self.cam_id, self.rtsp, self.shared_mem_name)
+            args=(self.cam_id, self.rtsp, self.shared_mem_name, self.lane, self.url_parking)
         )
         self.process.start()
 
@@ -281,9 +283,9 @@ class MainWindow(QWidget):
         self.camera_widgets = []
 
         layout = QVBoxLayout()
-        for cam_id, rtsp in camera_ids:
+        for cam_id, rtsp, lane, url_parking in camera_ids:
             group = QGroupBox(f"Camera {cam_id}")
-            cam_widget = CameraWidget(cam_id, rtsp)
+            cam_widget = CameraWidget(cam_id, rtsp, lane, url_parking)
             self.camera_widgets.append(cam_widget)
 
             vbox = QVBoxLayout()
@@ -403,10 +405,14 @@ if __name__ == '__main__':
 
     # Danh sách camera: 0, 1,... (tuỳ máy)
     camera_ids = [
-        # (0, "rtsp://admin:Oryza%40123@192.168.104.218:554/cam/realmonitor?channel=1&subtype=0"),
-        # (1, "rtsp://admin:Oryza%40123@192.168.103.38:554/cam/realmonitor?channel=1&subtype=0")
-        (0, "rtsp://admin:Oryza123@192.168.104.189:554/cam/realmonitor?channel=1&subtype=0"),
-        (1, "rtsp://admin:Oryza123@192.168.104.187:554/cam/realmonitor?channel=1&subtype=0")
+        # (0, "rtsp://admin:Oryza%40123@192.168.104.218:554/cam/realmonitor?channel=1&subtype=0", "left",
+        #  "http://192.168.103.52:8625"),
+        # (1, "rtsp://admin:Oryza%40123@192.168.103.38:554/cam/realmonitor?channel=1&subtype=0", "left",
+        #  "http://192.168.103.52:8625")
+        (0, "rtsp://admin:Oryza123@192.168.104.189:554/cam/realmonitor?channel=1&subtype=0", "left",
+         "http://192.168.104.5:8625"),
+        (1, "rtsp://admin:Oryza123@192.168.104.187:554/cam/realmonitor?channel=1&subtype=0", "right",
+         "http://192.168.104.5:8625"),
     ]
 
     main_window = MainWindow(camera_ids)

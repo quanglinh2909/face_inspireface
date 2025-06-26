@@ -22,6 +22,7 @@ from typing import List, Optional
 import logging
 from PIL import Image
 import io
+from datetime import datetime
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -96,7 +97,7 @@ class FaceRecognitionService:
             logger.error(f"Error extracting face embedding: {e}")
             return None
 
-    def add_face(self, image_bytes: bytes, person_name: str) -> dict:
+    def add_face(self, image_bytes: bytes, person_name: str,code_card:str) -> dict:
         """Add face to database"""
         embedding = self.extract_face_embedding(image_bytes)
 
@@ -107,11 +108,30 @@ class FaceRecognitionService:
         if embedding.ndim > 1:
             embedding = embedding.flatten()
 
+        image = Image.open(io.BytesIO(image_bytes))
+        image_array = np.array(image)
+
+        url = None
+        # Convert RGB to BGR for OpenCV
+        if len(image_array.shape) == 3 and image_array.shape[2] == 3:
+            image_array = cv2.cvtColor(image_array, cv2.COLOR_RGB2BGR)
+            # save image use opencv
+            url = os.path.join( "images", f"{uuid.uuid4()}.jpg")
+            url_save = os.path.join(self.script_dir, url)
+            # check if images directory exists
+            if not os.path.exists(os.path.dirname(url_save)):
+                os.makedirs(os.path.dirname(url_save))
+            cv2.imwrite(url_save, image_array)
+
+        if not url:
+            raise HTTPException(status_code=403, detail="Failed to save image")
+
         # Generate unique ID
         face_id = str(uuid.uuid4())
 
         # Store in Qdrant
         try:
+            current_time = datetime.now().isoformat()
             self.qdrant_client.upsert(
                 collection_name=self.collection_name,
                 points=[
@@ -120,16 +140,23 @@ class FaceRecognitionService:
                         vector=embedding.tolist(),
                         payload={
                             "person_name": person_name,
-                            "face_id": face_id
+                            "face_id": face_id,
+                            "image_url": url,
+                            "code_card": code_card,
+                            "created_at": current_time,
+                            "updated_at": current_time
                         }
                     )
                 ]
             )
 
             return {
+                "success": True,
+                "message": "Thêm khuôn mặt thành công!",
                 "face_id": face_id,
                 "person_name": person_name,
-                "status": "success"
+                "code_card": code_card,
+                "image_path": url.replace("images/", "") if url else None
             }
 
         except Exception as e:
@@ -158,9 +185,11 @@ class FaceRecognitionService:
             results = []
             for result in search_results:
                 results.append({
-                    "face_id": result.payload["face_id"],
+                    "id": result.payload["face_id"],  # Changed from face_id to id
                     "person_name": result.payload["person_name"],
-                    "similarity_score": result.score
+                    "score": result.score,  # Changed from similarity_score to score
+                    "image_path": result.payload.get("image_url", "").replace("images/", ""),  # Changed from image_url to image_path and remove images/ prefix
+                    "code_card": result.payload.get("code_card"),
                 })
 
             return results
@@ -187,7 +216,9 @@ class FaceRecognitionService:
                 results.append({
                     "face_id": result.payload["face_id"],
                     "person_name": result.payload["person_name"],
-                    "similarity_score": result.score
+                    "similarity_score": result.score,
+                    "image_url": result.payload.get("image_url"),
+                    "code_card": result.payload.get("code_card"),
                 })
 
             return results
@@ -207,8 +238,12 @@ class FaceRecognitionService:
             faces = []
             for point in scroll_result[0]:
                 faces.append({
-                    "face_id": point.payload["face_id"],
-                    "person_name": point.payload["person_name"]
+                    "id": point.payload["face_id"],  # Changed from face_id to id
+                    "person_name": point.payload["person_name"],
+                    "image_path": point.payload.get("image_url", "").replace("images/", ""),  # Changed from image_url to image_path and remove images/ prefix
+                    "code_card": point.payload.get("code_card"),
+                    "created_at": point.payload.get("created_at"),
+                    "updated_at": point.payload.get("updated_at")
                 })
 
             return faces
@@ -226,13 +261,109 @@ class FaceRecognitionService:
             )
 
             return {
-                "face_id": face_id,
-                "status": "deleted"
+                "success": True,
+                "message": "Xóa khuôn mặt thành công!",
+                "face_id": face_id
             }
 
         except Exception as e:
             logger.error(f"Error deleting face: {e}")
             raise HTTPException(status_code=500, detail="Failed to delete face")
+
+    def edit_face(self, face_id: str, person_name: str = None, code_card: str = None, image_bytes: bytes = None) -> dict:
+        """Edit face information"""
+        try:
+            # Get existing point
+            points = self.qdrant_client.retrieve(
+                collection_name=self.collection_name,
+                ids=[face_id]
+            )
+            
+            if not points:
+                raise HTTPException(status_code=404, detail="Face not found")
+            
+            existing_point = points[0]
+            updated_payload = existing_point.payload.copy()
+            
+            # Update person_name if provided
+            if person_name is not None:
+                updated_payload["person_name"] = person_name
+            
+            # Update code_card if provided
+            if code_card is not None:
+                updated_payload["code_card"] = code_card
+            
+            # Always update the updated_at timestamp
+            updated_payload["updated_at"] = datetime.now().isoformat()
+            
+            # If new image is provided, extract new embedding and save new image
+            if image_bytes is not None:
+                embedding = self.extract_face_embedding(image_bytes)
+                
+                if embedding is None:
+                    raise HTTPException(status_code=400, detail="No face detected in new image")
+                
+                # Ensure embedding is 1D
+                if embedding.ndim > 1:
+                    embedding = embedding.flatten()
+                
+                # Save new image
+                image = Image.open(io.BytesIO(image_bytes))
+                image_array = np.array(image)
+                
+                if len(image_array.shape) == 3 and image_array.shape[2] == 3:
+                    image_array = cv2.cvtColor(image_array, cv2.COLOR_RGB2BGR)
+                    
+                    # Delete old image if exists
+                    old_image_url = updated_payload.get("image_url")
+                    if old_image_url:
+                        old_image_path = os.path.join(self.script_dir, old_image_url)
+                        if os.path.exists(old_image_path):
+                            os.remove(old_image_path)
+                    
+                    # Save new image
+                    new_url = os.path.join("images", f"{uuid.uuid4()}.jpg")
+                    new_url_save = os.path.join(self.script_dir, new_url)
+                    
+                    if not os.path.exists(os.path.dirname(new_url_save)):
+                        os.makedirs(os.path.dirname(new_url_save))
+                    
+                    cv2.imwrite(new_url_save, image_array)
+                    updated_payload["image_url"] = new_url
+                
+                # Update with new embedding and payload
+                self.qdrant_client.upsert(
+                    collection_name=self.collection_name,
+                    points=[
+                        PointStruct(
+                            id=face_id,
+                            vector=embedding.tolist(),
+                            payload=updated_payload
+                        )
+                    ]
+                )
+            else:
+                # Update only payload (keep existing embedding)
+                self.qdrant_client.set_payload(
+                    collection_name=self.collection_name,
+                    payload=updated_payload,
+                    points=[face_id]
+                )
+            
+            return {
+                "success": True,
+                "message": "Cập nhật khuôn mặt thành công!",
+                "face_id": face_id,
+                "person_name": updated_payload["person_name"],
+                "code_card": updated_payload["code_card"],
+                "image_path": updated_payload.get("image_url", "").replace("images/", "") if updated_payload.get("image_url") else None
+            }
+            
+        except HTTPException as e:
+            raise e
+        except Exception as e:
+            logger.error(f"Error editing face: {e}")
+            raise HTTPException(status_code=500, detail="Failed to edit face")
 
 
 face_service = FaceRecognitionService()

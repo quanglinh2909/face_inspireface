@@ -71,6 +71,8 @@ class CameraWidget(QWidget):
         self.last_frame_time = 0
         self.frame_timeout = 10  # seconds
 
+        self._start_camera_process()
+
     def start_camera(self):
         try:
             self._start_camera_process()

@@ -440,6 +440,13 @@
         const formData = new FormData(document.getElementById('editForm'));
         const faceId = currentEditId;
 
+        // Kiểm tra xem file có được chọn hay không
+        const fileInput = document.getElementById('editFile');
+        if (fileInput.files.length === 0) {
+            // Nếu không có file được chọn, xóa trường file khỏi formData
+            formData.delete('file');
+        }
+
         try {
             const response = await fetch(`/faces/${faceId}`, {
                 method: 'PUT',

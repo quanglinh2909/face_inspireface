@@ -199,7 +199,7 @@ async def edit_face(
         image_bytes = None
         
         # Check if new image is provided
-        if file is not None:
+        if file is not None and file.filename and file.size > 0:
             if not file.content_type.startswith("image/"):
                 raise HTTPException(status_code=400, detail="File must be an image")
             image_bytes = await file.read()
@@ -231,7 +231,7 @@ async def edit_face_post(
         image_bytes = None
         
         # Check if new image is provided
-        if file is not None and file.filename:
+        if file is not None and file.filename and file.size > 0:
             if not file.content_type.startswith("image/"):
                 raise HTTPException(status_code=400, detail="File must be an image")
             image_bytes = await file.read()

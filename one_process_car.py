@@ -1,42 +1,40 @@
+import logging
 import os
 import queue
 import threading
 import time
-import cv2
-import numpy as np
 from multiprocessing import shared_memory
 
+import cv2
+import numpy as np
 import requests
 from ultralytics import YOLO
 
-from align_face import extract_faces_with_alignment, draw_keypoints_and_boxes
 from check_platform import get_os_name, PlatformEnum
-from face_embedding import SimpleEmbeddingExtractor
-import logging
+from shapely.geometry import Polygon, box as shapely_box
 
 # Giảm mức log của httpx xuống WARNING
 logging.getLogger("httpx").setLevel(logging.WARNING)
 
 
-def run_face_processing(id_camera, rtsp, shared_mem_name, lane,url_parking, data):
+def run_vehicle_processing(id_camera, rtsp, shared_mem_name, lane, url_parking, data):
     """Function to run face processing in a separate process"""
-    face_processor = OneProcessFace(id_camera, rtsp, shared_mem_name, lane,url_parking)
+    face_processor = OneProcessVehicle(id_camera, rtsp, shared_mem_name, lane, url_parking, data)
     face_processor.process_face()
 
 
-class OneProcessFace:
-    def __init__(self, id_camera, rtsp, shared_mem_name=None, lane="left",url_parking=None):
+class OneProcessVehicle:
+    def __init__(self, id_camera, rtsp, shared_mem_name=None, lane="left", url_parking=None, polygon_detect=[]):
         self.id_camera = id_camera
         self.platform = get_os_name()
         self.lane = lane  # Thêm lane vào constructor
         self.url_parking = url_parking
+        self.polygon_detect = polygon_detect
 
         self.script_dir = os.path.dirname(os.path.abspath(__file__))
-        self.path_model_detect_face = os.path.join(self.script_dir, "weight/yolov8n-face.onnx")
-        self.path_model_recognition = os.path.join(self.script_dir, "weight/w600k_r50.onnx")
+        self.path_model_detect_vehicle = os.path.join(self.script_dir, "weight/yolov8n.onnx")
         if self.platform != PlatformEnum.UBUNTU:
-            self.path_model_detect_face = os.path.join(self.script_dir, "weight/yolov8n-face_rknn_model_640")
-            self.path_model_recognition = os.path.join(self.script_dir, "weight/w600k_r50.rknn")
+            self.path_model_detect_vehicle = os.path.join(self.script_dir, "weight/yolov8n_rknn")
 
         self.rtsp = rtsp
         self.stopped = False
@@ -103,78 +101,56 @@ class OneProcessFace:
             print(f"[Camera {self.id_camera}] Error writing to shared memory: {e}")
 
     def process_face(self):
-        from find_face_service import find_face_service
 
         # Initialize objects that can't be pickled
         self.frame_queue = queue.Queue(maxsize=1)
         # Setup shared memory
         self._setup_shared_memory()
+        print("[Camera {self.id_camera}] Shared memory setup complete")
 
         try:
-            self.yolo_model = YOLO(self.path_model_detect_face, task='pose')
-
-            self.embedding_extractor = SimpleEmbeddingExtractor(self.platform, self.path_model_recognition)
+            self.yolo_model = YOLO(self.path_model_detect_vehicle, task='detect')
 
             thread = threading.Thread(target=self.read_frames, daemon=True)
             thread.start()
-            count = 0
             start_time = time.time()
-            temp = 0
-            id_current = None
-            current_time = time.time()
 
             while not self.stopped:
                 if not self.frame_queue.empty():
                     frame = self.frame_queue.get_nowait()
                     if self.platform != PlatformEnum.UBUNTU:
                         frame = cv2.cvtColor(frame, cv2.COLOR_YUV2BGR_NV12)
+                        # Run YOLO inference on the frame
+                    results = self.yolo_model(frame, verbose=False, classes=[2], conf=0.6, iou=0.1)
 
-                    # # Face recognition processing
-                    aligned_faces, results = extract_faces_with_alignment(frame, self.yolo_model)
-                    for i, aligned_face in enumerate(aligned_faces):
-                        embedding = self.embedding_extractor.extract_embedding_from_aligned_face(aligned_face)
-                        if embedding is not None:
-                            data = find_face_service.find_face(embedding)
-                            if len(data) > 0:
-                                similarity = data[0]['similarity_score']
-                                face_id = data[0]['face_id']
-                                code_card = data[0]['code_card']
-                                # percentage = (similarity + 1) / 2 * 100  # chuẩn hóa từ [-1,1] về [0,100]
-                                if similarity > 0.5:
-                                    print(data)
-                                    if id_current == face_id and time.time() - current_time < 5:
-                                        continue
-                                    data_send = {
-                                        "code_card": code_card,
-                                        "lane": self.lane,
+                    # draw the polygon area for detection
+                    cv2.polylines(frame, [np.array(self.polygon_detect, np.int32)], isClosed=True,
+                                  color=(255, 0, 0),
+                                  thickness=2)
 
-                                    }
+                    for result in results:
+                        boxes = result.boxes.numpy()
+                        for b in boxes:
+                            x1, y1, x2, y2 = map(int, b.xyxy[0])
+
+                            bbox_polygon = shapely_box(x1, y1, x2, y2)
+                            intersection = Polygon(self.polygon_detect).intersection(bbox_polygon)
+                            intersection_area = intersection.area
+                            if intersection_area == 0:
+                                # draw bounding box red
+                                cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 0, 255), 2)
+                            else:
+                                cv2.rectangle(frame, (x1, y1), (x2, y2), (255, 0, 0), 2)
+                                if time.time() - start_time > 10:
+                                    start_time = time.time()
+                                    print("Intersection area:", intersection_area)
                                     try:
 
-                                        result = requests.post(f"{self.url_parking}/parking/authentication",
-                                                               json=data_send)
-                                        if result.json() is True:
-                                            id_current = face_id
-                                            current_time = time.time()
+                                        result = requests.post(f"{self.url_parking}/barrier/open",
+                                                               json={"io_pin": 3})
+
                                     except Exception as e:
                                         print(f"[Camera {self.id_camera}] Error sending data: {e}")
-                                    # id_current = face_id
-                                    # current_time = time.time()
-                                    # requests.get("http://192.168.103.97:8090/3")
-
-                    # # Draw keypoints and boxes
-                    count += 1
-                    if time.time() - start_time > 1:
-                        # print(f"[Camera {self.id_camera}] Processed {count} frames in the last second")
-                        count = 0
-                        start_time = time.time()
-                        temp = count
-
-                    # draw temp frames per second
-
-                    cv2.putText(frame, f"FPS: {temp}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
-                    draw_keypoints_and_boxes(frame, results)
-
                     # Write frame to shared memory for GUI display
                     self._write_frame_to_shared_memory(frame)
 
@@ -232,4 +208,4 @@ class OneProcessFace:
 
 if __name__ == "__main__":
     rtsp_url = "rtsp://admin:Oryza%40123@192.168.104.218:554/cam/realmonitor?channel=1&subtype=0"
-    run_face_processing(id_camera=1, rtsp=rtsp_url, shared_mem_name="camera_1_frame")
+    # run_face_processing(id_camera=1, rtsp=rtsp_url, shared_mem_name="camera_1_frame")
